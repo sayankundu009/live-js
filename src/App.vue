@@ -22,7 +22,34 @@ console.log("Another message");`.trim();
 const debounceFunction = debounce((callback) => callback(), 1500);
 
 function customLogFunction(lineNumber, ...args) {
-  const text = args.map((arg) => ["number", "string"].includes(typeof arg) ? arg : JSON.stringify(arg)).join(" ");
+  const text = args.map((arg) =>{
+    let value;
+
+    // TODO:Handle DOM elements
+
+    switch (typeof arg) {
+      case "number":
+      case "string":
+        value = String(arg);
+        break;
+      case "undefined":
+        value = "undefined";
+        break;
+      case "function":
+        value = `function ${arg.name || "anonymous"}() { [native code] }`;
+        break;
+      default:
+        value = JSON.stringify(arg);
+    }
+
+    if(!value.trim()){
+      value = `" "`;
+    }
+
+    value = value.replaceAll("'", '"');
+
+    return value;
+  }).join(" ");
 
   editorRef.value.addTextAboveLine({
     line: lineNumber,
@@ -32,16 +59,20 @@ function customLogFunction(lineNumber, ...args) {
 }
 
 function onError(error, line) {
-  console.log(error);;
+  console.log(error);
 
   const lineNumber = line ?? error.loc?.line ?? (error.message?.match(/\((\d+):\d+\)/) ?? [, 1])[1];
 
   const message = error.message ?? error.toString();
 
-  editorRef.value.addTextAboveLine({
-    line: lineNumber,
-    text: message,
-    type: "error",
+  const text = message.replaceAll("'", '"');
+
+  requestAnimationFrame(() => {
+    editorRef.value.addTextAboveLine({
+      line: lineNumber,
+      text,
+      type: "error",
+    });
   });
 
   cleanupAsyncOperations();
@@ -105,10 +136,11 @@ function evaluate(code) {
   try {
     const transformedCode = transform(code, {
       plugins: [customLogTransformPlugin, infiniteLoopSafetyPlugin],
-      presets: ["env"],
       sourceType: "script",
     }).code;
 
+    window.transformedCode = transformedCode;
+    
     iframeRef.value.contentDocument.body.innerHTML = ``;
 
     requestIdleCallback(() => {
