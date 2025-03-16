@@ -1,0 +1,27 @@
+{
+  "name": "runner-js",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@babel/standalone": "^7.24.7",
+    "@guolao/vue-monaco-editor": "^1.5.1",
+    "diff": "^7.0.0",
+    "monaco-editor": "^0.49.0",
+    "monaco-editor-vue": "^1.0.2",
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "@shikijs/monaco": "^2.4.1",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "shiki": "^2.4.1",
+    "shikiji": "^0.10.2",
+    "shikiji-monaco": "^0.10.2",
+    "vite": "^5.2.0"
+  }
+}
