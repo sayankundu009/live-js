@@ -14,7 +14,8 @@
     "diff": "^7.0.0",
     "monaco-editor": "^0.49.0",
     "monaco-editor-vue": "^1.0.2",
-    "vue": "^3.4.21"
+    "vue": "^3.4.21",
+    "vue-console-feed": "^0.0.29"
   },
   "devDependencies": {
     "@shikijs/monaco": "^2.4.1",

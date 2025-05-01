@@ -63,3 +63,14 @@ export function diffLines(oldText, newText) {
 
     return operations;
 }
+
+export function extractLineNumberFromError(str) {
+    const regex = /<anonymous>:(\d+):\d+/;
+    const match = str.match(regex);
+
+    if (match && match[1]) {
+        return parseInt(match[1], 10);
+    } else {
+        return null;
+    }
+}

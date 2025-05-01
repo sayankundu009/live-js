@@ -4,9 +4,9 @@ import Editor from "./components/Editor/index.vue";
 import AiPanel from "./components/AiPanel/index.vue";
 import Loading from "./components/Loading/index.vue";
 import { transform } from "@babel/standalone";
-import { customLogTransformPlugin, infiniteLoopSafetyPlugin } from "./utils/babel";
+import { customLogTransformPlugin, infiniteLoopSafetyPlugin, replaceCommentsPlugin } from "./utils/babel";
 import { generateCode } from "./utils/ai";
-import { debounce, diffLines } from "./utils";
+import { debounce, diffLines, extractLineNumberFromError } from "./utils";
 import { ref, onMounted } from "vue";
 
 const inputCode = `for (let index = 0; index < 5; index++) {
@@ -58,14 +58,26 @@ function customLogFunction(lineNumber, ...args) {
   });
 }
 
-function onError(error, line) {
-  console.log(error);
+function onError(error, line, type) {
+  console.error(error);
 
+  if(type == "code" && error.stack){
+    const codeLine = extractLineNumberFromError(error.stack);
+
+    console.log(codeLine);
+
+    if(codeLine){
+      line = codeLine - 2; // because function execution add two extra lines
+    }
+  }
+  
   const lineNumber = line ?? error.loc?.line ?? (error.message?.match(/\((\d+):\d+\)/) ?? [, 1])[1];
 
   const message = error.message ?? error.toString();
 
-  const text = message.replaceAll("'", '"');
+  let text = message.replaceAll("'", '"');
+
+  text = `🚩 ${text}`;
 
   requestAnimationFrame(() => {
     editorRef.value.addTextAboveLine({
@@ -133,34 +145,36 @@ function evaluate(code) {
     return;
   }
 
-  try {
+  try {    
     const transformedCode = transform(code, {
-      plugins: [customLogTransformPlugin, infiniteLoopSafetyPlugin],
+      plugins: [replaceCommentsPlugin, customLogTransformPlugin, infiniteLoopSafetyPlugin],
       sourceType: "script",
+      retainLines: true,
     }).code;
 
-    window.transformedCode = transformedCode;
-    
     iframeRef.value.contentDocument.body.innerHTML = ``;
 
     requestIdleCallback(() => {
       const windowInstance = iframeRef.value.contentWindow;
 
-      try {
-        new windowInstance.Function(
-          ["$data"],
-          `
-           with($data) { 
-            (() => {
-              try {
-                ${transformedCode} 
-              } catch(error) {
-                onError(error);
-              }
+      windowInstance.onerror = (error) => onError(error, 0, "code");
+
+      const code = `
+        with($data) { 
+          try {
+            (function __LIVE__JS__() {
+                {{CODE}}
             })()
-           }
-        `,
-        )({
+          } catch(error) {
+            onError(error, null, "code");
+          }
+        }
+      `.trim().replaceAll("\n", "").replace("{{CODE}}", transformedCode);
+
+      window.transformedCode = code;
+
+      try {
+        new windowInstance.Function(["$data"], code)({
           customLogFunction,
           onError,
           ...setupAsyncOperations({windowInstance}),

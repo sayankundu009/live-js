@@ -7,6 +7,26 @@
   
   <Teleport to="head">
     <component :is="'style'">
+      .error{
+        background-color: #f003;
+        padding: 1px 0;
+        padding-bottom: 2px;
+      }
+      .error-linenumber, .log-linenumber{
+        width: 10px !important;
+        border-radius: 1px;
+        height: 10px !important;
+        position: absolute !important;
+        top: 30%;
+        left: 74% !important;
+      }
+      .log-linenumber{
+        background-color: #4ade80;
+      }
+      .error-linenumber {
+        background-color: #ef4444;
+      }
+
       {{
         textDecorationCollection.reduce((acc, item, index) => {
           return (
@@ -14,14 +34,16 @@
             `
             .text-decoration-${index} {
               position: relative;
+              padding: 1px 0;
+              padding-bottom: 2px;
               z-index: -1;
-              padding: 2px 0;
+              background: transparent;
               pointer-events: none;
               color: ${item.type === 'error' ? '#cd4f4f' : '#4f88cd'};
               font-family: "Droid Sans Mono", "monospace", monospace;
               font-size: ${MONACO_EDITOR_OPTIONS.fontSize}px;
               font-weight: bold;
-              width: max-content;
+              width: 1px !important;
               animation: fadeIn 0.1s;
             }
             .text-decoration-${index}::after {
@@ -187,12 +209,18 @@ function addTextAboveLine({ line, text, type = 'log' }) {
 
       const lineContent = editorRef.value.getModel().getLineContent(line);
 
+      const errorlogConfig = type == 'error' ? {
+        inlineClassName: 'error',
+        linesDecorationsClassName: "error-linenumber",
+      } : {};
+
       const decoration = {
         range: new monacoRef.value.Range(line, lineContent.length, line, lineContent.length + 1),
         options: {
           isWholeLine: true,
           shouldFillLineOnLineBreak: false,
           blockIsAfterEnd: true,
+          ...errorlogConfig,
           after: {
             content: " ",
             inlineClassName: `text-decoration-${textDecorationCollection.value.length}`,
