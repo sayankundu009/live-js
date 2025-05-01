@@ -2,12 +2,16 @@
 import Navbar from "./components/Navbar/index.vue";
 import Editor from "./components/Editor/index.vue";
 import AiPanel from "./components/AiPanel/index.vue";
+import Console from "./components/Console/index.vue";
 import Loading from "./components/Loading/index.vue";
 import { transform } from "@babel/standalone";
 import { customLogTransformPlugin, infiniteLoopSafetyPlugin, replaceCommentsPlugin } from "./utils/babel";
 import { generateCode } from "./utils/ai";
 import { debounce, diffLines, extractLineNumberFromError } from "./utils";
 import { ref, onMounted } from "vue";
+
+import { Splitpanes, Pane } from 'splitpanes'
+import 'splitpanes/dist/splitpanes.css'
 
 const inputCode = `for (let index = 0; index < 5; index++) {
   console.log(index);
@@ -20,6 +24,7 @@ setTimeout(() => {
 console.log("Another message");`.trim();
 
 const debounceFunction = debounce((callback) => callback(), 1500);
+const debounceInstantFunction = debounce((callback) => callback(), 500);
 
 function customLogFunction(lineNumber, ...args) {
   const text = args.map((arg) =>{
@@ -51,6 +56,8 @@ function customLogFunction(lineNumber, ...args) {
     return value;
   }).join(" ");
 
+  consoleRef.value.log(...args);
+
   editorRef.value.addTextAboveLine({
     line: lineNumber,
     text,
@@ -64,8 +71,6 @@ function onError(error, line, type) {
   if(type == "code" && error.stack){
     const codeLine = extractLineNumberFromError(error.stack);
 
-    console.log(codeLine);
-
     if(codeLine){
       line = codeLine - 2; // because function execution add two extra lines
     }
@@ -77,12 +82,14 @@ function onError(error, line, type) {
 
   let text = message.replaceAll("'", '"');
 
-  text = `🚩 ${text}`;
+  let formattedText = `🚩 ${text}`;
 
   requestAnimationFrame(() => {
+    consoleRef.value.error(text);
+
     editorRef.value.addTextAboveLine({
       line: lineNumber,
-      text,
+      text: formattedText,
       type: "error",
     });
   });
@@ -194,16 +201,26 @@ function editorCleanup() {
   editorRef.value.clearDecorations();
 }
 
-function executeCode() {
+function executeCode({instant = false} = {}) {
   editorCleanup();
 
   if (!activeFile.value) {
     return;
   }
 
-  debounceFunction(() => {
-    evaluate(activeFile.value.content);
-  });
+  if(!consoleRef.value.shouldPreserveLogs()) {
+    consoleRef.value.clearConsole();
+  }
+
+  if(instant) {
+    debounceInstantFunction(() => {
+      evaluate(activeFile.value.content);
+    });
+  } else {
+    debounceFunction(() => {
+      evaluate(activeFile.value.content);
+    });
+  }
 }
 
 function onChange({ content }) {
@@ -235,6 +252,7 @@ function onEditorMount() {
 const loading = ref(true);
 const editorRef = ref(null);
 const iframeRef = ref(null);
+const consoleRef = ref(null);
 const aiPanelOpen = ref(false);
 const aiLoading = ref(false);
 const files = ref([{ id: 1, name: "app.js", content: inputCode }]);
@@ -280,7 +298,7 @@ function onFileDelete(fileId) {
 }
 
 function onRunCode() {
-  executeCode();
+  executeCode({instant: true});
 }
 
 function onFormatCode() {
@@ -359,9 +377,14 @@ onMounted(() => {
   <div style="height: 100%">
     <Navbar :files="files" :activeFile="activeFile" :isDisabled="aiLoading" @onFileSelect="onFileSelect" @onFileAdd="onFileAdd" @onFileDelete="onFileDelete" @onRunCode="onRunCode" @onFormatCode="onFormatCode" @onToggleAi="onToggleAi" @onFileRename="onFileRename" />
     
-    <div v-show="files.length > 0">
-      <Editor @onMount="onEditorMount" @onChange="onChange" @onFileSave="executeCode" @onFileAdd="onFileAdd" @onToggleAi="onToggleAi" ref="editorRef" />
-    </div>
+    <splitpanes v-show="files.length > 0" horizontal style="height: calc(100vh - 37px)">
+      <pane size="95" min-size="40">
+        <Editor @onMount="onEditorMount" @onChange="onChange" @onFileSave="() => executeCode({instant: true})" @onFileAdd="onFileAdd" @onToggleAi="onToggleAi" ref="editorRef" />
+      </pane>
+      <pane size="5" min-size="5">
+        <Console ref="consoleRef" />
+      </pane>
+    </splitpanes>
 
     <transition name="fade-up">
       <AiPanel v-if="aiPanelOpen" @onSubmit="onAiSubmit" @onClose="aiPanelOpen = false" :loading="aiLoading" />
@@ -428,6 +451,38 @@ body {
   padding: 2px 6px;
   font-family: monospace;
   color: #e0e0e0;
+}
+
+/* Splitpanes */
+.splitpanes--horizontal>.splitpanes__splitter {
+  min-height: 0px;
+  position: relative;
+
+  &:before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 20px;
+    position: absolute;
+    top: 0px;
+    left: 0;
+    z-index: 1000;
+    transition: border-top-color 0.2s ease-in-out;
+    cursor: n-resize;
+    border-top: 4px solid transparent;
+  }
+}
+
+.splitpanes--horizontal>.splitpanes__splitter:hover {
+  &:before {
+    border-top-color: #cd804f;
+  }
+}
+
+.splitpanes--horizontal>.splitpanes__splitter:active {
+  &:before {
+    border-top-color: #cd804f;
+  }
 }
 
 @keyframes fadeIn {
